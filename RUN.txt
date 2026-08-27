@@ -1,0 +1,7 @@
+Terminal 1 — Python API (port 8000):
+  cd property-api
+  uvicorn main:app --reload --port 8000
+
+Terminal 2 — React Frontend (port 5173):
+  cd manzil-frontend
+  npm run dev

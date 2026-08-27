@@ -1,0 +1,50 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Environment / secrets
+.env
+.env.local
+
+# Node / TS build cache
+node_modules/
+dist/
+*.local
+*.tsbuildinfo
+
+# Frontend build copied into backend for static serving
+property-api/static/
+
+# RAG artifacts — regenerate with: python rebuild_rag.py
+property-api/rag_embeddings.npy
+property-api/rag_faiss.index
+property-api/rag_bm25.pkl
+property-api/rag_properties.jsonl
+
+# Model cache / large artifacts (kept out of git)
+dataset_cache.joblib
+*.keras
+*.cbm
+catboost_info/
+Laravel/
+.kilo/
+
+# Logs
+*.log
+
+# IDE / OS
+.vscode/
+.idea/
+.opencode/
+opencode.json
+.DS_Store
+Thumbs.db
+
+# ML Models & Datasets
+*.joblib
+*.xlsx
+*.csv

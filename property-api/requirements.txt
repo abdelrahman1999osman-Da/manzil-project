@@ -1,0 +1,15 @@
+fastapi
+uvicorn[standard]
+pydantic
+joblib
+numpy
+pandas
+openpyxl
+openai
+python-dotenv
+lightgbm
+scikit-learn
+shap>=0.52.0
+sentence-transformers
+faiss-cpu
+rank-bm25
