@@ -42,7 +42,7 @@ old_correction = None
 try:
     import joblib
     parent = os.path.join(BASE_DIR, "..")
-    old_model = joblib.load(os.path.join(parent, "lgb_model.joblib"))
+    old_model = joblib.load(os.path.join(BASE_DIR, "lgb_model.joblib"))
     old_preprocessor = joblib.load(os.path.join(parent, "preprocessor.joblib"))
     old_categories = joblib.load(os.path.join(parent, "categories.joblib"))
     old_correction = joblib.load(os.path.join(parent, "correction_tables.joblib"))

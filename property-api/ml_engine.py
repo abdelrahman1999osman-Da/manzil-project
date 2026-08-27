@@ -16,7 +16,7 @@ class ManzilEngine:
         t0 = pd.Timestamp.now()
         parent = os.path.join(base_dir, "..")
 
-        self.model = joblib.load(os.path.join(parent, "lgb_model.joblib"))
+        self.model = joblib.load(os.path.join(base_dir, "lgb_model.joblib"))
         self.preprocessor = joblib.load(os.path.join(parent, "preprocessor.joblib"))
         self.categories = joblib.load(os.path.join(parent, "categories.joblib"))
         self.correction = joblib.load(os.path.join(parent, "correction_tables.joblib"))

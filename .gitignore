@@ -46,5 +46,6 @@ Thumbs.db
 
 # ML Models & Datasets
 *.joblib
+!property-api/lgb_model.joblib
 *.xlsx
 *.csv

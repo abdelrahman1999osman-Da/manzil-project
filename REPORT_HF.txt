@@ -1,0 +1,65 @@
+ROOT CAUSE: The project was configured for Railway deployment, but for Hugging Face Spaces (Docker Spaces) we need to ensure the Dockerfile is self-contained and the CMD uses the PORT environment variable correctly. Additionally, the .dockerignore was incorrectly excluding RAG artifacts, which would cause them to be missing in the Docker image.
+
+FILES INSPECTED:
+- Dockerfile
+- railway.json
+- .dockerignore
+- property-api/main.py
+- property-api/requirements.txt
+- property-api/ml_engine.py
+- property-api/rag_engine.py
+- manzil-frontend/package.json
+
+FILES CHANGED:
+- .dockerignore
+- Dockerfile
+
+EXACT CHANGES:
+1. .dockerignore: Removed the following lines that were incorrectly excluding RAG artifacts:
+   property-api/rag_embeddings.npy
+   property-api/rag_faiss.index
+   property-api/rag_bm25.pkl
+   property-api/rag_properties.jsonl
+
+2. Dockerfile: Changed the CMD from:
+      CMD ["sh", "-c", "cd property-api && uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+   to:
+      CMD ["sh", "-c", "uvicorn property-api.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+   This avoids changing the working directory and uses the explicit module path, which is more reliable for Hugging Face Spaces.
+
+START COMMAND:
+The start command is defined in the Dockerfile CMD:
+   uvicorn property-api.main:app --host 0.0.0.0 --port ${PORT:-8000}
+   (This uses the PORT environment variable set by Hugging Face Spaces, with a fallback to 8000.)
+
+PORT CONFIGURATION:
+The application uses the PORT environment variable provided by Hugging Face Spaces. The CMD explicitly passes this to uvicorn via --port ${PORT:-8000}.
+
+HEALTHCHECK CONFIGURATION:
+No healthcheck is configured in the Dockerfile. Hugging Face Spaces considers the container healthy if the process is listening on the assigned port. The FastAPI application does not expose a root GET / endpoint, but this is not required for the container to be considered healthy.
+
+ENVIRONMENT VARIABLES REQUIRED:
+- None for core API functionality (prediction, search, etc.).
+- OPENROUTER_API_KEY is required for the AI Assistant endpoint (/api/assistant/chat) but is optional for core API. If this endpoint is needed, set OPENROUTER_API_KEY in the Hugging Face Spaces secrets.
+- RAG_SEMANTIC defaults to "1" (enabled). Set to "0" to disable semantic search and use BM25-only mode (less efficient but still functional).
+
+VERIFICATION RESULTS:
+- The .dockerignore no longer ignores the RAG files, ensuring they are included in the Docker image.
+- Verified that the Dockerfile copies the RAG files via `COPY . .` (after .dockerignore fix) and the frontend build via multi-stage build.
+- Verified that the startup command uses the property-api.main module and respects the PORT environment variable.
+- Verified that the required dependencies (including sentence-transformers, faiss-cpu, rank-bm25) are listed in requirements.txt.
+- Verified that the ML models and cleaned property data are present in the project root and will be copied into the Docker image.
+- Verified that the frontend package.json contains a build script that will be executed during the Docker build.
+
+RAILWAY DEPLOYMENT STEPS (for reference, but we are targeting Hugging Face Spaces):
+1. Push the updated .dockerignore and Dockerfile to the repository.
+2. Trigger a new deployment on Hugging Face Spaces (or redeploy the current commit).
+3. Hugging Face Spaces will rebuild the Docker image (now including the RAG files and using the updated CMD).
+4. The container will start using the CMD from the Dockerfile.
+5. The Property API will be accessible on the assigned port, serving the frontend at root and API routes under /api/.
+6. The AI Assistant will work if OPENROUTER_API_KEY is set in Hugging Face Spaces secrets.
+
+ANY REMAINING BLOCKERS:
+- The AI Assistant endpoint will return 503 if OPENROUTER_API_KEY is not configured. Set this variable in Hugging Face Spaces if the feature is needed.
+- Ensure that the RAG_SEMANTIC environment variable is not set to "0" if semantic search is desired (it defaults to "1").
+- The first container startup may experience a delay while the sentence-transformers model (all-MiniLM-L6-v2) is downloaded and cached. This model is required for encoding search queries in the RAG engine. The model is small (~50MB) and will be cached in the container's filesystem for subsequent startups within the same container instance. However, since Hugging Face Spaces rebuilds the container on each deploy, the model will be downloaded on each deploy. This is acceptable given the model size and typical network speeds in Hugging Face Spaces.

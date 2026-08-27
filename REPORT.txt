@@ -1,0 +1,52 @@
+ROOT CAUSE: The .dockerignore file was incorrectly ignoring the RAG artifacts (rag_embeddings.npy, rag_faiss.index, rag_bm25.pkl, rag_properties.jsonl), causing them to be missing in the Docker image. This likely led to failures during RAGEngine initialization (e.g., missing file errors or timeouts during embedding model downloads), resulting in container crashes on Railway.
+
+FILES INSPECTED:
+- Dockerfile
+- railway.json
+- .dockerignore
+- property-api/main.py
+- property-api/requirements.txt
+- property-api/ml_engine.py
+- property-api/rag_engine.py
+
+FILES CHANGED:
+- .dockerignore
+
+EXACT CHANGES:
+Removed the following lines from .dockerignore:
+property-api/rag_embeddings.npy
+property-api/rag_faiss.index
+property-api/rag_bm25.pkl
+property-api/rag_properties.jsonl
+
+START COMMAND:
+cd property-api && uvicorn main:app --host 0.0.0.0 --port $PORT
+(as defined in railway.json)
+
+PORT CONFIGURATION:
+Uses the $PORT environment variable set by Railway (default fallback of 8000 in Dockerfile CMD is overridden by railway.json).
+
+HEALTHCHECK CONFIGURATION:
+No healthcheck configured in railway.json; Railway considers the container healthy if the process is listening on the assigned port. The FastAPI application does not expose a root GET / endpoint, but this is not required for healthcheck purposes.
+
+ENVIRONMENT VARIABLES REQUIRED:
+- None for core API functionality (prediction, search, etc.).
+- OPENROUTER_API_KEY is required for the AI Assistant endpoint (/api/assistant/chat) but is optional for core API.
+
+VERIFICATION RESULTS:
+- The .dockerignore no longer ignores the RAG files, ensuring they are included in the Docker image.
+- Verified that the Dockerfile copies the RAG files via `COPY . .` (after .dockerignore fix) and the frontend build via multi-stage build.
+- Verified that the startup command changes to the property-api directory and runs uvicorn with the correct host and port.
+- Verified that the required dependencies (including sentence-transformers, faiss-cpu, rank-bm25) are listed in requirements.txt.
+
+RAILWAY DEPLOYMENT STEPS:
+1. Push the updated .dockerignore to the repository.
+2. Trigger a new deployment on Railway (or redeploy the current commit).
+3. Railway will rebuild the Docker image (now including the RAG files).
+4. The container will start using the startCommand from railway.json.
+5. The Property API will be accessible on the assigned port, serving the frontend at root and API routes under /api/.
+6. The AI Assistant will work if OPENROUTER_API_KEY is set in Railway environment variables.
+
+ANY REMAINING BLOCKERS:
+- The AI Assistant endpoint will return 503 if OPENROUTER_API_KEY is not configured. Set this variable in Railway if the feature is needed.
+- Ensure that the RAG_SEMANTIC environment variable is not set to "0" (it defaults to "1"), as this would disable semantic search and fall back to BM25-only mode (still functional but less efficient).
