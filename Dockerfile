@@ -8,6 +8,7 @@ RUN npm run build
 
 # ── Stage 2: FastAPI backend serving the built frontend ──
 FROM python:3.12-slim AS runtime
+RUN apt-get update && apt-get install -y libgomp1 && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 ENV PYTHONUNBUFFERED=1
 
