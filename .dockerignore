@@ -4,10 +4,6 @@
 **/node_modules
 **/dist
 **/static
-property-api/rag_embeddings.npy
-property-api/rag_faiss.index
-property-api/rag_bm25.pkl
-property-api/rag_properties.jsonl
 property-api/static
 .env
 .env.*
