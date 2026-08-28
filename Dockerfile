@@ -8,15 +8,19 @@ RUN npm run build
 
 # ── Stage 2: FastAPI backend serving the built frontend ──
 FROM python:3.12-slim AS runtime
-# Cache-bust: bump to force rebuild of libgomp layer when Railway uses cached layers
-ARG CACHEBUST=20260828_02
+# Cache-bust for Railway — bump to force rebuild of apt layer when using cached images
+ARG CACHEBUST=20260828_03
 RUN apt-get update \
     && apt-get install -y --no-install-recommends libgomp1 \
     && ldconfig \
     && test -e /usr/lib/x86_64-linux-gnu/libgomp.so.1 \
     && rm -rf /var/lib/apt/lists/*
-RUN ldconfig -p | grep libgomp && \
-    find /usr -name 'libgomp.so.1*' -print
+# Build-time verification — MUST FAIL if libgomp1 not in FINAL image (no || true)
+RUN set -eux; \
+    dpkg -l | grep libgomp; \
+    dpkg -L libgomp1; \
+    find /usr -name 'libgomp.so.1*' -print; \
+    ldconfig -p | grep libgomp
 WORKDIR /app
 ENV PYTHONUNBUFFERED=1
 
@@ -26,11 +30,22 @@ RUN pip install --no-cache-dir -r property-api/requirements.txt
 COPY . .
 COPY --from=frontend /fe/dist property-api/static
 
-# ── Build-time verifications — MUST FAIL BUILD if libgomp1 / LightGBM / model missing (no || true) ──
-RUN python -c "import ctypes; ctypes.CDLL('libgomp.so.1'); print('LIBGOMP LOAD SUCCESS')"
-RUN python -c "import lightgbm; print('LIGHTGBM IMPORT SUCCESS', lightgbm.__file__)"
-RUN python -c "import joblib; m=joblib.load('property-api/lgb_model.joblib'); print(type(m)); print('MODEL LOAD SUCCESS')"
-# Verify shared-library dependencies (ldd) for LightGBM — shows any "not found"
+# ── Build-time verifications — MUST FAIL BUILD if libgomp / LightGBM / model missing ──
+RUN python - <<'PY'
+import ctypes
+ctypes.CDLL("libgomp.so.1")
+print("LIBGOMP_RUNTIME_OK")
+PY
+RUN python - <<'PY'
+import lightgbm
+print("LIGHTGBM_IMPORT_OK", lightgbm.__file__)
+PY
+RUN python - <<'PY'
+import joblib
+model = joblib.load("property-api/lgb_model.joblib")
+print("LIGHTGBM_MODEL_LOAD_OK", type(model))
+PY
+# Verify shared-library dependencies for LightGBM
 RUN python -c "import lightgbm, pathlib; p=pathlib.Path(lightgbm.__file__).parent; print('lightgbm dir:', p)" && \
     find $(python -c "import lightgbm, pathlib; print(pathlib.Path(lightgbm.__file__).parent)") -name "_lightgbm*.so" -exec ldd {} \; | grep -E "libgomp|not found" | head -n 20
 
