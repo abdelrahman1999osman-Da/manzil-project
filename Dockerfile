@@ -8,9 +8,12 @@ RUN npm run build
 
 # ── Stage 2: FastAPI backend serving the built frontend ──
 FROM python:3.12-slim AS runtime
+# Cache-bust: bump to force rebuild of libgomp layer when Railway uses cached layers
+ARG CACHEBUST=20260828_02
 RUN apt-get update \
     && apt-get install -y --no-install-recommends libgomp1 \
     && ldconfig \
+    && test -e /usr/lib/x86_64-linux-gnu/libgomp.so.1 \
     && rm -rf /var/lib/apt/lists/*
 RUN ldconfig -p | grep libgomp && \
     find /usr -name 'libgomp.so.1*' -print
@@ -23,13 +26,13 @@ RUN pip install --no-cache-dir -r property-api/requirements.txt
 COPY . .
 COPY --from=frontend /fe/dist property-api/static
 
-# ── Build-time verifications — fail build if libgomp1 / LightGBM / model missing ──
-RUN python -c "import ctypes; ctypes.CDLL('libgomp.so.1'); print('libgomp.so.1 OK')"
-RUN python -c "import lightgbm; print('LightGBM OK')"
-RUN python -c "import joblib; joblib.load('property-api/lgb_model.joblib'); print('MODEL LOAD OK')"
+# ── Build-time verifications — MUST FAIL BUILD if libgomp1 / LightGBM / model missing (no || true) ──
+RUN python -c "import ctypes; ctypes.CDLL('libgomp.so.1'); print('LIBGOMP LOAD SUCCESS')"
+RUN python -c "import lightgbm; print('LIGHTGBM IMPORT SUCCESS', lightgbm.__file__)"
+RUN python -c "import joblib; m=joblib.load('property-api/lgb_model.joblib'); print(type(m)); print('MODEL LOAD SUCCESS')"
 # Verify shared-library dependencies (ldd) for LightGBM — shows any "not found"
 RUN python -c "import lightgbm, pathlib; p=pathlib.Path(lightgbm.__file__).parent; print('lightgbm dir:', p)" && \
-    find $(python -c "import lightgbm, pathlib; print(pathlib.Path(lightgbm.__file__).parent)") -name "_lightgbm*.so" -exec ldd {} \; | head -n 100
+    find $(python -c "import lightgbm, pathlib; print(pathlib.Path(lightgbm.__file__).parent)") -name "_lightgbm*.so" -exec ldd {} \; | grep -E "libgomp|not found" | head -n 20
 
 EXPOSE 8000
 # Runtime diagnostics in SAME final image that Railway starts — must succeed for model to load
