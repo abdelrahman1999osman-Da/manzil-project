@@ -9,7 +9,7 @@ RUN npm run build
 # ── Stage 2: FastAPI backend serving the built frontend ──
 FROM python:3.12-slim AS runtime
 # Cache-bust for Railway — bump to force rebuild of apt layer when using cached images
-ARG CACHEBUST=20260828_03
+ARG CACHEBUST=20260828_04
 RUN apt-get update \
     && apt-get install -y --no-install-recommends libgomp1 \
     && ldconfig \

@@ -25,20 +25,44 @@ app.add_middleware(
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
+# ── Startup diagnostics (must not hide real cause) ──
+import platform
+import traceback
+logger.info("[manzil.api] Checking libgomp...")
+try:
+    import ctypes
+    ctypes.CDLL("libgomp.so.1")
+    logger.info("[manzil.api] libgomp OK: %s", "libgomp.so.1 found via ctypes")
+except Exception as e:
+    logger.error("[manzil.api] libgomp check FAILED: %s\n%s", e, traceback.format_exc())
+logger.info("[manzil.api] Python %s on %s (%s)", platform.python_version(), platform.machine(), platform.system())
+try:
+    import os as _os
+    _p = "/usr/lib/x86_64-linux-gnu/libgomp.so.1"
+    logger.info("[manzil.api] libgomp exists %s: %s", _p, os.path.exists(_p))
+except Exception:
+    pass
+
 engine = None
 rag_engine = None
+logger.info("[manzil.api] Loading LightGBM engine...")
 try:
     from ml_engine import ManzilEngine
     engine = ManzilEngine(BASE_DIR)
+    logger.info("[manzil.api] LightGBM engine loaded: %s", type(engine).__name__)
+    logger.info("[manzil.api] Loading RAG engine...")
     from rag_engine import RAGEngine
     rag_engine = RAGEngine(engine.dataset)
+    logger.info("[manzil.api] RAG engine loaded")
+    logger.info("[manzil.api] Engine initialized successfully")
 except Exception as e:
-    logger.error("Failed to load engines: %s", e)
+    logger.error("[manzil.api] Failed to load engines: %s\n%s", e, traceback.format_exc())
 
 old_model = None
 old_preprocessor = None
 old_categories = None
 old_correction = None
+logger.info("[manzil.api] Loading legacy model...")
 try:
     import joblib
     parent = os.path.join(BASE_DIR, "..")
@@ -46,8 +70,9 @@ try:
     old_preprocessor = joblib.load(os.path.join(parent, "preprocessor.joblib"))
     old_categories = joblib.load(os.path.join(parent, "categories.joblib"))
     old_correction = joblib.load(os.path.join(parent, "correction_tables.joblib"))
+    logger.info("[manzil.api] Legacy model loaded successfully: %s", type(old_model).__name__)
 except Exception as e:
-    logger.warning("Legacy model loading error: %s", e)
+    logger.error("[manzil.api] Legacy model loading error: %s\n%s", e, traceback.format_exc())
 
 
 class PropertyInputs(BaseModel):
@@ -69,6 +94,21 @@ def get_categories():
     return {
         "Property Type": list(cats["Property Type"]),
         "City_Map": cats["City_Map"],
+    }
+
+
+@app.get("/health")
+def health():
+    ok = (engine is not None) or (old_model is not None)
+    return {
+        "status": "ok" if ok else "degraded",
+        "ml_engine": engine is not None,
+        "model_loaded": ok,
+        "rag_available": rag_engine is not None,
+        "openrouter_configured": bool(OPENROUTER_API_KEY),
+        "python_version": platform.python_version(),
+        "platform": platform.machine(),
+        "libgomp_available": os.path.exists("/usr/lib/x86_64-linux-gnu/libgomp.so.1"),
     }
 
 
